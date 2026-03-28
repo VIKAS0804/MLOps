@@ -13,6 +13,7 @@ Changes made vs original:
 """
 
 import os
+import tempfile
 import warnings
 import logging
 import itertools
@@ -67,20 +68,21 @@ def eval_metrics(y_true, y_pred, y_prob):
 
 # ── Artifact helpers ──────────────────────────────────────────────────────────
 
-def save_confusion_matrix(y_true, y_pred, run_name: str) -> str:
+def save_confusion_matrix(y_true, y_pred, run_name: str, tmp_dir: str) -> str:
     cm   = confusion_matrix(y_true, y_pred)
     disp = ConfusionMatrixDisplay(confusion_matrix=cm,
                                   display_labels=["No Disease", "Disease"])
     fig, ax = plt.subplots(figsize=(5, 4))
     disp.plot(ax=ax, colorbar=False)
     ax.set_title(f"Confusion Matrix — {run_name}")
-    path = f"/tmp/confusion_matrix_{run_name.replace(' ', '_')}.png"
+    fname = f"confusion_matrix_{run_name.replace(' ', '_').replace('=', '_')}.png"
+    path  = os.path.join(tmp_dir, fname)
     fig.savefig(path, bbox_inches="tight", dpi=120)
     plt.close(fig)
     return path
 
 
-def save_feature_importance(model, feature_names: list, run_name: str):
+def save_feature_importance(model, feature_names: list, run_name: str, tmp_dir: str):
     if not hasattr(model, "feature_importances_"):
         return None
     importances = model.feature_importances_
@@ -91,7 +93,8 @@ def save_feature_importance(model, feature_names: list, run_name: str):
     ax.set_xticklabels([feature_names[i] for i in indices], rotation=45, ha="right")
     ax.set_title(f"Feature Importances — {run_name}")
     ax.set_ylabel("Importance")
-    path = f"/tmp/feature_importance_{run_name.replace(' ', '_')}.png"
+    fname = f"feature_importance_{run_name.replace(' ', '_').replace('=', '_')}.png"
+    path  = os.path.join(tmp_dir, fname)
     fig.savefig(path, bbox_inches="tight", dpi=120)
     plt.close(fig)
     return path
@@ -101,32 +104,33 @@ def save_feature_importance(model, feature_names: list, run_name: str):
 
 def run_experiment(model, params: dict, run_name: str,
                    X_train, X_test, y_train, y_test, feature_names):
-    with mlflow.start_run(run_name=run_name):
-        model.fit(X_train, y_train)
-        y_pred = model.predict(X_test)
-        y_prob = model.predict_proba(X_test)[:, 1]
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        with mlflow.start_run(run_name=run_name):
+            model.fit(X_train, y_train)
+            y_pred = model.predict(X_test)
+            y_prob = model.predict_proba(X_test)[:, 1]
 
-        acc, f1, auc = eval_metrics(y_test, y_pred, y_prob)
+            acc, f1, auc = eval_metrics(y_test, y_pred, y_prob)
 
-        mlflow.log_params(params)
-        mlflow.log_metric("accuracy", round(acc, 4))
-        mlflow.log_metric("f1_score", round(f1,  4))
-        mlflow.log_metric("roc_auc",  round(auc, 4))
+            mlflow.log_params(params)
+            mlflow.log_metric("accuracy", round(acc, 4))
+            mlflow.log_metric("f1_score", round(f1,  4))
+            mlflow.log_metric("roc_auc",  round(auc, 4))
 
-        print(f"  [{run_name}]  acc={acc:.4f}  f1={f1:.4f}  auc={auc:.4f}")
+            print(f"  [{run_name}]  acc={acc:.4f}  f1={f1:.4f}  auc={auc:.4f}")
 
-        # Confusion matrix artifact
-        cm_path = save_confusion_matrix(y_test, y_pred, run_name)
-        mlflow.log_artifact(cm_path, artifact_path="plots")
+            # Confusion matrix artifact
+            cm_path = save_confusion_matrix(y_test, y_pred, run_name, tmp_dir)
+            mlflow.log_artifact(cm_path, artifact_path="plots")
 
-        # Feature importance artifact (tree models only)
-        fi_path = save_feature_importance(model, feature_names, run_name)
-        if fi_path:
-            mlflow.log_artifact(fi_path, artifact_path="plots")
+            # Feature importance artifact (tree models only)
+            fi_path = save_feature_importance(model, feature_names, run_name, tmp_dir)
+            if fi_path:
+                mlflow.log_artifact(fi_path, artifact_path="plots")
 
-        # Log model with signature
-        signature = infer_signature(X_train, y_pred)
-        mlflow.sklearn.log_model(model, "model", signature=signature)
+            # Log model with signature
+            signature = infer_signature(X_train, y_pred)
+            mlflow.sklearn.log_model(model, "model", signature=signature)
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
@@ -151,7 +155,7 @@ if __name__ == "__main__":
 
     mlflow.set_experiment("heart-disease-classification")
 
-    # ── 1. Logistic Regression param sweep (C values) ────────────────────────
+    # ── 1. Logistic Regression param sweep ───────────────────────────────────
     print("\n── Logistic Regression sweep ──")
     for C in [0.01, 0.1, 1.0, 10.0]:
         model  = LogisticRegression(C=C, max_iter=1000, random_state=42)
@@ -159,7 +163,7 @@ if __name__ == "__main__":
         run_experiment(model, params, f"LogReg_C={C}",
                        X_train, X_test, y_train, y_test, feature_names)
 
-    # ── 2. Random Forest param sweep (n_estimators x max_depth) ──────────────
+    # ── 2. Random Forest param sweep ─────────────────────────────────────────
     print("\n── Random Forest sweep ──")
     for n_est, max_d in itertools.product([50, 100], [3, 5]):
         model  = RandomForestClassifier(n_estimators=n_est, max_depth=max_d, random_state=42)
@@ -178,4 +182,4 @@ if __name__ == "__main__":
 
     print("\n✅ All 9 runs complete!")
     print("Launch MLflow UI:  mlflow ui")
-    print("Then open:         http://127.0.0.1:5000")
+    print("Then open:         http://localhost:5000")
