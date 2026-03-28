@@ -41,7 +41,7 @@ if __name__ == '__main__':
     dataset_name = "Reuters Corpus Volume"
     current_time = datetime.datetime.now().strftime("%y%m%d_%H%M%S")
     experiment_id = mlflow.create_experiment(f"{dataset_name}_{current_time}")
-
+~
     with mlflow.start_run(experiment_id=experiment_id, run_name=dataset_name):
         mlflow.log_params({
             "dataset_name": dataset_name,
