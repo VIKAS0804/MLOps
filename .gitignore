@@ -23,6 +23,8 @@ google-cloud-sdk/
 .Python
 build/
 mlruns/
+mlflow.db
+*.db
 develop-eggs/
 dist/
 downloads/

@@ -21,7 +21,7 @@ import itertools
 import numpy as np
 import pandas as pd
 import matplotlib
-matplotlib.use("Agg")   # non-interactive backend — no display needed
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 from sklearn.linear_model import LogisticRegression
@@ -45,11 +45,6 @@ warnings.filterwarnings("ignore")
 # ── Data Loading ──────────────────────────────────────────────────────────────
 
 def load_heart_disease_data():
-    """
-    UCI Heart Disease (Cleveland) — loaded from local CSV bundled in data/.
-    Target: 0 = no disease, 1 = disease.
-    No internet connection required.
-    """
     script_dir = os.path.dirname(os.path.abspath(__file__))
     csv_path   = os.path.join(script_dir, "data", "heart_disease.csv")
     df = pd.read_csv(csv_path)
@@ -74,7 +69,7 @@ def save_confusion_matrix(y_true, y_pred, run_name: str, tmp_dir: str) -> str:
                                   display_labels=["No Disease", "Disease"])
     fig, ax = plt.subplots(figsize=(5, 4))
     disp.plot(ax=ax, colorbar=False)
-    ax.set_title(f"Confusion Matrix — {run_name}")
+    ax.set_title(f"Confusion Matrix - {run_name}")
     fname = f"confusion_matrix_{run_name.replace(' ', '_').replace('=', '_')}.png"
     path  = os.path.join(tmp_dir, fname)
     fig.savefig(path, bbox_inches="tight", dpi=120)
@@ -91,7 +86,7 @@ def save_feature_importance(model, feature_names: list, run_name: str, tmp_dir: 
     ax.bar(range(len(importances)), importances[indices])
     ax.set_xticks(range(len(importances)))
     ax.set_xticklabels([feature_names[i] for i in indices], rotation=45, ha="right")
-    ax.set_title(f"Feature Importances — {run_name}")
+    ax.set_title(f"Feature Importances - {run_name}")
     ax.set_ylabel("Importance")
     fname = f"feature_importance_{run_name.replace(' ', '_').replace('=', '_')}.png"
     path  = os.path.join(tmp_dir, fname)
@@ -119,16 +114,13 @@ def run_experiment(model, params: dict, run_name: str,
 
             print(f"  [{run_name}]  acc={acc:.4f}  f1={f1:.4f}  auc={auc:.4f}")
 
-            # Confusion matrix artifact
             cm_path = save_confusion_matrix(y_test, y_pred, run_name, tmp_dir)
             mlflow.log_artifact(cm_path, artifact_path="plots")
 
-            # Feature importance artifact (tree models only)
             fi_path = save_feature_importance(model, feature_names, run_name, tmp_dir)
             if fi_path:
                 mlflow.log_artifact(fi_path, artifact_path="plots")
 
-            # Log model with signature
             signature = infer_signature(X_train, y_pred)
             mlflow.sklearn.log_model(model, "model", signature=signature)
 
@@ -137,6 +129,10 @@ def run_experiment(model, params: dict, run_name: str,
 
 if __name__ == "__main__":
     np.random.seed(42)
+
+    # Set tracking URI to a fresh local path — avoids stale absolute paths in mlflow.db
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    mlflow.set_tracking_uri(f"sqlite:///{os.path.join(script_dir, 'mlflow.db')}")
 
     print("Loading UCI Heart Disease dataset from local CSV...")
     df = load_heart_disease_data()
@@ -153,26 +149,24 @@ if __name__ == "__main__":
         X_scaled, y, test_size=0.2, random_state=42, stratify=y
     )
 
+    mlflow.set_tracking_uri("mlruns")
     mlflow.set_experiment("heart-disease-classification")
 
-    # ── 1. Logistic Regression param sweep ───────────────────────────────────
-    print("\n── Logistic Regression sweep ──")
+    print("\n-- Logistic Regression sweep --")
     for C in [0.01, 0.1, 1.0, 10.0]:
         model  = LogisticRegression(C=C, max_iter=1000, random_state=42)
         params = {"model": "LogisticRegression", "C": C, "max_iter": 1000}
         run_experiment(model, params, f"LogReg_C={C}",
                        X_train, X_test, y_train, y_test, feature_names)
 
-    # ── 2. Random Forest param sweep ─────────────────────────────────────────
-    print("\n── Random Forest sweep ──")
+    print("\n-- Random Forest sweep --")
     for n_est, max_d in itertools.product([50, 100], [3, 5]):
         model  = RandomForestClassifier(n_estimators=n_est, max_depth=max_d, random_state=42)
         params = {"model": "RandomForest", "n_estimators": n_est, "max_depth": max_d}
         run_experiment(model, params, f"RF_n={n_est}_d={max_d}",
                        X_train, X_test, y_train, y_test, feature_names)
 
-    # ── 3. Gradient Boosting ──────────────────────────────────────────────────
-    print("\n── Gradient Boosting ──")
+    print("\n-- Gradient Boosting --")
     model  = GradientBoostingClassifier(n_estimators=100, learning_rate=0.1,
                                         max_depth=3, random_state=42)
     params = {"model": "GradientBoosting", "n_estimators": 100,
@@ -180,6 +174,6 @@ if __name__ == "__main__":
     run_experiment(model, params, "GradientBoosting",
                    X_train, X_test, y_train, y_test, feature_names)
 
-    print("\n✅ All 9 runs complete!")
+    print("\nAll 9 runs complete!")
     print("Launch MLflow UI:  mlflow ui")
     print("Then open:         http://localhost:5000")
