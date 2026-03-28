@@ -1,0 +1,37 @@
+name: MLflow Heart Disease Experiment
+
+on:
+  push:
+    paths:
+      - 'Labs/Experiment_Tracking_Labs/Mlflow_Labs/Lab1/**'
+  workflow_dispatch:
+
+jobs:
+  run-experiment:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: Labs/Experiment_Tracking_Labs/Mlflow_Labs/Lab1
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run MLflow experiment tracking
+        run: python heart_disease_tracking.py
+
+      - name: Upload MLflow artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: mlflow-results
+          path: |
+            Labs/Experiment_Tracking_Labs/Mlflow_Labs/Lab1/mlruns/
+            Labs/Experiment_Tracking_Labs/Mlflow_Labs/Lab1/mlflow.db
