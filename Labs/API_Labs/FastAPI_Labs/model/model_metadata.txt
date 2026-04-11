@@ -1,0 +1,28 @@
+{
+  "dataset_name": "wine_recognition",
+  "model_name": "standard_scaler_logistic_regression",
+  "train_size": 133,
+  "test_size": 45,
+  "feature_names": [
+    "alcohol",
+    "malic_acid",
+    "ash",
+    "alcalinity_of_ash",
+    "magnesium",
+    "total_phenols",
+    "flavanoids",
+    "nonflavanoid_phenols",
+    "proanthocyanins",
+    "color_intensity",
+    "hue",
+    "od280_od315_of_diluted_wines",
+    "proline"
+  ],
+  "class_labels": [
+    "class_0",
+    "class_1",
+    "class_2"
+  ],
+  "test_accuracy": 1.0,
+  "test_macro_f1": 1.0
+}
